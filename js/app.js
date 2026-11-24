@@ -10,8 +10,9 @@
  * 4. Réagit aux événements de connexion, déconnexion et expiration de session (401).
  */
 
-import { initAuth, isAuthenticated, getCurrentUser, switchAuthTab } from "./auth.js";
+import { initAuth, isAuthenticated, getCurrentUser, switchAuthTab, getStorageKeys } from "./auth.js";
 import { initBoard, loadUserBoards, resetBoardState } from "./board.js";
+import { isDemoMode } from "./api.js";
 
 /**
  * Met à jour l'affichage de l'interface en fonction de l'état de connexion de l'utilisateur
@@ -83,6 +84,20 @@ async function bootstrap() {
   initAuth();
   initBoard();
   setupGlobalEventSubscriptions();
+
+  // En mode Démo autonome : pré-connexion automatique si non authentifié pour débloquer l'accès direct
+  if (isDemoMode() && !isAuthenticated()) {
+    const keys = getStorageKeys();
+    localStorage.setItem(keys.TOKEN, "kando-demo-jwt-token");
+    localStorage.setItem(
+      keys.USER,
+      JSON.stringify({
+        id: 1,
+        username: "alex_dev",
+        email: "alex@logitrack.internal"
+      })
+    );
+  }
 
   // Contrôle de l'état initial d'authentification
   if (isAuthenticated()) {

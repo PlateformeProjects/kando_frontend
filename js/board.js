@@ -11,7 +11,7 @@
  * - Traite le Drag & Drop natif HTML5 avec calcul d'index entier 'position' (0, 1, 2...).
  */
 
-import { api, showToast } from "./api.js";
+import { api, showToast, resetDemoData } from "./api.js";
 
 // État local du module Kanban
 let boardsList = [];
@@ -756,6 +756,15 @@ function setupBoardUIEventListeners() {
           }
         }
       );
+    });
+  }
+
+  // Réinitialisation des données de démo (spécifique au mode démo)
+  const btnResetDemo = document.getElementById("btn-reset-demo");
+  if (btnResetDemo) {
+    btnResetDemo.addEventListener("click", async () => {
+      resetDemoData();
+      await loadUserBoards();
     });
   }
 

@@ -1,6 +1,7 @@
 /**
  * Kando - Module d'Authentification
  * Gère l'inscription, la connexion, la déconnexion et la persistance de session JWT.
+ * Supporte le stockage isolé pour le mode Démo autonome.
  *
  * RÔLE PÉDAGOGIQUE POUR LES ÉTUDIANTS B2 DEV :
  * - Appelle les routes POST /api/auth/register et POST /api/auth/login.
@@ -8,10 +9,26 @@
  * - Fournit les mécanismes de bascule d'onglets (Connexion / Inscription) et de déconnexion.
  */
 
-import { api, showToast } from "./api.js";
+import { api, showToast, isDemoMode } from "./api.js";
 
 /**
- * Clés de stockage local utilisées par l'application
+ * Retourne les clés de stockage selon le mode actif (standard vs démo)
+ */
+export function getStorageKeys() {
+  if (isDemoMode()) {
+    return {
+      TOKEN: "kando_demo_token",
+      USER: "kando_demo_user"
+    };
+  }
+  return {
+    TOKEN: "kando_token",
+    USER: "kando_user"
+  };
+}
+
+/**
+ * Clés de stockage par défaut
  */
 export const STORAGE_KEYS = {
   TOKEN: "kando_token",
@@ -19,11 +36,12 @@ export const STORAGE_KEYS = {
 };
 
 /**
- * Vérifie si un utilisateur est actuellement authentifié avec un token présent en mémoire locale
+ * Vérifie si un utilisateur est actuellement authentifié
  * @returns {boolean}
  */
 export function isAuthenticated() {
-  return Boolean(localStorage.getItem(STORAGE_KEYS.TOKEN));
+  const keys = getStorageKeys();
+  return Boolean(localStorage.getItem(keys.TOKEN));
 }
 
 /**
@@ -31,7 +49,8 @@ export function isAuthenticated() {
  * @returns {{ id: number, username: string, email: string } | null}
  */
 export function getCurrentUser() {
-  const userJson = localStorage.getItem(STORAGE_KEYS.USER);
+  const keys = getStorageKeys();
+  const userJson = localStorage.getItem(keys.USER);
   if (!userJson) return null;
   try {
     return JSON.parse(userJson);
@@ -44,8 +63,9 @@ export function getCurrentUser() {
  * Déconnecte l'utilisateur en cours, nettoie le stockage local et déclenche l'événement global
  */
 export function logout() {
-  localStorage.removeItem(STORAGE_KEYS.TOKEN);
-  localStorage.removeItem(STORAGE_KEYS.USER);
+  const keys = getStorageKeys();
+  localStorage.removeItem(keys.TOKEN);
+  localStorage.removeItem(keys.USER);
 
   showToast("Vous avez été déconnecté avec succès.", "info");
 
@@ -91,6 +111,7 @@ export function initAuth() {
   const tabLoginBtn = document.getElementById("tab-login-btn");
   const tabRegisterBtn = document.getElementById("tab-register-btn");
   const logoutBtn = document.getElementById("btn-logout");
+  const demoQuickLoginBtn = document.getElementById("btn-demo-quick-login");
 
   // 1. Gestion des clics sur les onglets
   if (tabLoginBtn) {
@@ -108,7 +129,28 @@ export function initAuth() {
     });
   }
 
-  // 3. Soumission du formulaire d'inscription (POST /api/auth/register)
+  // 3. Bouton optionnel de connexion rapide en mode démo
+  if (demoQuickLoginBtn) {
+    demoQuickLoginBtn.addEventListener("click", () => {
+      const keys = getStorageKeys();
+      const demoUser = {
+        id: 1,
+        username: "alex_dev",
+        email: "alex@logitrack.internal"
+      };
+      localStorage.setItem(keys.TOKEN, "kando-demo-jwt-token");
+      localStorage.setItem(keys.USER, JSON.stringify(demoUser));
+
+      showToast("Connexion démo rapide réussie.", "success");
+      window.dispatchEvent(
+        new CustomEvent("kando:login-success", {
+          detail: { user: demoUser, token: "kando-demo-jwt-token" }
+        })
+      );
+    });
+  }
+
+  // 4. Soumission du formulaire d'inscription (POST /api/auth/register)
   if (formRegister) {
     formRegister.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -134,9 +176,6 @@ export function initAuth() {
           submitBtn.textContent = "Création du compte...";
         }
 
-        // Appel de la route API attendue : POST /api/auth/register
-        // Payload attendu : { username, email, password }
-        // Réponse attendue (201) : objet utilisateur { id, username, email, ... }
         const createdUser = await api.post("/auth/register", {
           username,
           email,
@@ -149,11 +188,9 @@ export function initAuth() {
           5000
         );
 
-        // Réinitialisation du formulaire d'inscription
         formRegister.reset();
-
-        // Bascule vers l'onglet Connexion et pré-remplissage de l'email
         switchAuthTab("login");
+
         const loginEmailInput = document.getElementById("login-email");
         const loginPasswordInput = document.getElementById("login-password");
         if (loginEmailInput) {
@@ -163,7 +200,6 @@ export function initAuth() {
           loginPasswordInput.focus();
         }
       } catch (err) {
-        // L'erreur détaillée est déjà captée et affichée dans un toast par api.js
         console.error("[Kando Auth] Erreur lors de l'inscription :", err);
       } finally {
         if (submitBtn) {
@@ -174,7 +210,7 @@ export function initAuth() {
     });
   }
 
-  // 4. Soumission du formulaire de connexion (POST /api/auth/login)
+  // 5. Soumission du formulaire de connexion (POST /api/auth/login)
   if (formLogin) {
     formLogin.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -198,9 +234,6 @@ export function initAuth() {
           submitBtn.textContent = "Connexion en cours...";
         }
 
-        // Appel de la route API attendue : POST /api/auth/login
-        // Payload attendu : { email, password }
-        // Réponse attendue (200) : { token, user: { id, username, email } }
         const data = await api.post("/auth/login", {
           email,
           password
@@ -210,25 +243,23 @@ export function initAuth() {
           throw new Error("Réponse invalide du serveur : token JWT manquant.");
         }
 
-        // Sauvegarde du token et des données utilisateur dans le localStorage
-        localStorage.setItem(STORAGE_KEYS.TOKEN, data.token);
+        const keys = getStorageKeys();
+        localStorage.setItem(keys.TOKEN, data.token);
 
         const userPayload = data.user || {
           id: data.id || null,
           email: email,
           username: data.username || email.split("@")[0]
         };
-        localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(userPayload));
+        localStorage.setItem(keys.USER, JSON.stringify(userPayload));
 
         showToast(
           `Connexion réussie. Bienvenue sur Kando, ${userPayload.username} !`,
           "success"
         );
 
-        // Réinitialisation du formulaire de connexion
         formLogin.reset();
 
-        // Émission de l'événement global de connexion réussie
         window.dispatchEvent(
           new CustomEvent("kando:login-success", {
             detail: { user: userPayload, token: data.token }

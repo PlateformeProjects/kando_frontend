@@ -42,6 +42,17 @@ npx serve -l 5500 .
 
 ---
 
+### Version Démo Autonome (Sans Backend Requis)
+
+Pour tester immédiatement l'interface utilisateur, le glisser-déposer (Drag & Drop), les fenêtres modales et la recherche sans avoir démarré votre serveur backend :
+
+1. Ouvrez directement **`demo.html`** via Live Server (`http://127.0.0.1:5500/demo.html`).
+2. Vous êtes automatiquement connecté avec le profil `alex_dev` et un jeu de données complet de l'équipe IT Logitrack est préchargé en mémoire locale.
+3. Toutes les actions (créer/éditer/supprimer des cartes, réordonner les colonnes, déplacer des tâches, rechercher) sont simulées de façon persistante.
+4. Un bouton **"Réinitialiser Démo"** dans la barre supérieure permet de restaurer les données initiales à tout moment.
+
+---
+
 ## 3. Configuration de l'URL Backend
 
 Le fichier **`js/config.js`** est le **seul fichier** de configuration du frontend :
@@ -298,7 +309,8 @@ Votre backend Express doit scrupuleusement respecter les routes, méthodes HTTP,
 
 ```text
 kando_frontend/
-├── index.html          # Structure HTML5 sémantique, modales et conteneurs
+├── index.html          # Client officiel connecté à l'API backend Express
+├── demo.html           # Version Démo autonome avec base simulée (sans backend)
 ├── css/
 │   └── style.css       # Système de design moderne (Linear/Trello), variables et animations
 ├── js/
